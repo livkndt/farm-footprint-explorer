@@ -15,8 +15,9 @@ database_url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.u
 database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
 config.set_main_option("sqlalchemy.url", database_url)
 
-# target_metadata will hold the SQLAlchemy Base.metadata once models exist
-target_metadata = None
+from app.models.footprint import Base
+
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

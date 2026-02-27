@@ -46,3 +46,4 @@ pgdata/
 
 # Local claude settings
 .claude
+plan.md
