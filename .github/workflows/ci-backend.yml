@@ -1,0 +1,46 @@
+name: CI — Backend
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgis/postgis:15-3.3
+        env:
+          POSTGRES_USER: farmuser
+          POSTGRES_PASSWORD: farmpass
+          POSTGRES_DB: farmfootprint
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://farmuser:farmpass@localhost:5432/farmfootprint
+        run: uv run pytest --cov=app --cov-report=term-missing
