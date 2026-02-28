@@ -102,6 +102,8 @@ farm-footprint-explorer/
 - The backend defines the contract via OpenAPI
 - The frontend consumes a generated client — never hand-writes fetch calls to the backend
 - After any backend schema change, run `scripts/generate-client.sh` to regenerate the client
+- When adding or changing request/response fields, update `model_config["json_schema_extra"]["examples"]` in `app/schemas/footprint.py` so the `/docs` UI shows valid, realistic payloads
+- Validate inputs at the Pydantic schema layer (not in service code) so invalid requests return 422 before reaching the database
 
 ### Strict TypeScript
 - `"strict": true` in tsconfig — no `any`, no implicit `any`
