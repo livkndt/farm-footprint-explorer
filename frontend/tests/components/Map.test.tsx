@@ -29,7 +29,7 @@ describe("Map", () => {
     );
     rerender(<MapComponent mode="pin" onGeometryChange={vi.fn()} />);
     const onCalls = getMockMap().on.mock.calls;
-    expect(onCalls.some(([event]: [string]) => event === "click")).toBe(true);
+    expect(onCalls.some(([event]) => event === "click")).toBe(true);
   });
 
   it("calling clear via prop removes marker and calls onGeometryChange(null)", () => {
@@ -40,7 +40,7 @@ describe("Map", () => {
     );
     // Simulate the map click event being fired
     const clickCall = getMockMap().on.mock.calls.find(
-      ([event]: [string]) => event === "click"
+      ([event]) => event === "click"
     );
     if (clickCall) {
       const handler = clickCall[1] as (e: { lngLat: { lng: number; lat: number } }) => void;
