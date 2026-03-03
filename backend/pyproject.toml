@@ -12,6 +12,8 @@ dependencies = [
     "geoalchemy2",
     "shapely",
     "pydantic",
+    "pydantic-settings",
+    "httpx",
     "python-dotenv",
 ]
 
@@ -21,6 +23,7 @@ dev = [
     "pytest-asyncio",
     "httpx",
     "pytest-cov",
+    "respx",
 ]
 
 [tool.uv]

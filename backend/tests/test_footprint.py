@@ -1,6 +1,9 @@
+import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from unittest.mock import AsyncMock
 
+from app.config import Settings, get_settings
 from app.db import get_db
 from app.main import app
 from tests.conftest import seed_alert, seed_land_cover
@@ -21,15 +24,33 @@ POINT_BODY = {
 _SEED_POLYGON = POLYGON_BODY["geometry"]
 
 
+@pytest.fixture(autouse=True)
+def mock_ingest(monkeypatch):
+    """Prevent any test in this module from making real GFW HTTP calls."""
+    import app.services.land_analysis as la
+
+    monkeypatch.setattr(
+        la, "ingest_alerts_for_geometry", AsyncMock(return_value=(0, True))
+    )
+
+
 @pytest_asyncio.fixture
 async def client_with_db(db_session):
     await seed_land_cover(db_session, _SEED_POLYGON, "tree_cover")
     await seed_alert(db_session, 0.5, 0.5, 1.0, "high")
 
-    async def override():
+    async def override_db():
         yield db_session
 
-    app.dependency_overrides[get_db] = override
+    def override_settings():
+        return Settings(
+            gfw_api_key="test-key",
+            gfw_api_base_url="https://example.com",
+            gfw_alerts_lookback_days=365,
+        )
+
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_settings] = override_settings
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:

@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import json
+import logging
+from datetime import datetime, timezone
 
+from shapely.geometry import mapping as shapely_mapping
+from shapely.geometry import shape
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.footprint import AnalyseResponse, DeforestationAlerts, LandCoverItem
+from app.services.alert_ingestion import ingest_alerts_for_geometry
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_BUFFER_M = 1000.0  # metres
 
@@ -25,11 +32,33 @@ def _resolved_geom(geometry_type: str, buffer_km: float | None) -> str:
     return "ST_SetSRID(ST_GeomFromGeoJSON(:geojson), 4326)"
 
 
+def _to_gfw_polygon(geometry: dict, buffer_km: float | None) -> dict:
+    """Return a GeoJSON Polygon suitable for the GFW API.
+
+    Points and explicitly-buffered polygons are buffered using an equatorial
+    degree approximation (1° ≈ 111.32 km). The small distortion is acceptable
+    because GFW data is stored in PostGIS and the spatial query uses the
+    accurate PostGIS buffer anyway.
+    """
+    if geometry["type"] == "Polygon" and buffer_km is None:
+        return geometry
+    geom = shape(geometry)
+    deg = ((buffer_km or 1.0) * 1000) / 111_320
+    buffered = geom.buffer(deg)
+    return json.loads(json.dumps(shapely_mapping(buffered)))
+
+
 async def analyse_footprint(
     geometry: dict,
     db: AsyncSession,
     buffer_km: float | None = None,
+    settings=None,
 ) -> AnalyseResponse:
+    alerts_live = False
+    if settings is not None:
+        gfw_geom = _to_gfw_polygon(geometry, buffer_km)
+        _, alerts_live = await ingest_alerts_for_geometry(gfw_geom, db, settings)
+
     buffer_m = (buffer_km * 1000) if buffer_km is not None else _DEFAULT_BUFFER_M
     params = {"geojson": json.dumps(geometry), "buffer_m": float(buffer_m)}
     geom = _resolved_geom(geometry["type"], buffer_km)
@@ -111,4 +140,6 @@ async def analyse_footprint(
             period=period,
         ),
         centroid=[float(area_row["lon"]), float(area_row["lat"])],
+        alerts_live=alerts_live,
+        alerts_fetched_at=datetime.now(timezone.utc),
     )

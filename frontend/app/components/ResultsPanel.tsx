@@ -158,6 +158,24 @@ export default function ResultsPanel({
         )}
       </div>
 
+      {/* Alert data freshness */}
+      {result.alerts_live ? (
+        <p data-testid="alerts-fetched-at" className="text-xs text-gray-400">
+          Alerts current as of{" "}
+          {new Date(result.alerts_fetched_at).toLocaleString("en-US", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
+        </p>
+      ) : (
+        <p
+          data-testid="alerts-cached-notice"
+          className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
+        >
+          Using cached alert data — live fetch unavailable
+        </p>
+      )}
+
       {/* Footer */}
       <p className="text-xs text-gray-400 mt-auto">
         Data: ESA WorldCover · GLAD Alerts · Analysis area may be approximate

@@ -209,4 +209,40 @@ describe("ResultsPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  // --- Phase 6: alert freshness indicator tests ---
+
+  it("shows alerts_fetched_at timestamp when alerts_live is true", () => {
+    render(
+      <ResultsPanel
+        geometry={pointGeometry}
+        isLoading={false}
+        result={{ ...baseResult, alerts_live: true }}
+        error={null}
+        onRetry={noOp}
+      />
+    );
+    expect(screen.getByTestId("alerts-fetched-at")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("alerts-cached-notice")
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows cached data notice when alerts_live is false", () => {
+    render(
+      <ResultsPanel
+        geometry={pointGeometry}
+        isLoading={false}
+        result={{ ...baseResult, alerts_live: false }}
+        error={null}
+        onRetry={noOp}
+      />
+    );
+    expect(screen.getByTestId("alerts-cached-notice")).toBeInTheDocument();
+    expect(
+      screen.getByText(/using cached alert data/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("alerts-fetched-at")
+    ).not.toBeInTheDocument();
+  });
 });

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field, field_validator
@@ -91,3 +92,5 @@ class AnalyseResponse(BaseModel):
     land_cover: list[LandCoverItem]
     deforestation_alerts: DeforestationAlerts
     centroid: list[float]  # [lon, lat]
+    alerts_live: bool
+    alerts_fetched_at: datetime
