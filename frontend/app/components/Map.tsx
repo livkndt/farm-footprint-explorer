@@ -13,13 +13,16 @@ interface MapProps {
   onGeometryChange: (g: GeoJSONGeometry | null) => void;
   clearTrigger?: number;
   geometry?: GeoJSONGeometry | null;
+  analysisComplete?: boolean;
 }
 
 const RESULT_SOURCE = "result";
 const RESULT_FILL = "result-fill";
 const RESULT_LINE = "result-line";
+const RING_SOURCE = "ring";
+const RING_LAYER = "ring-circle";
 
-export default function Map({ mode, onGeometryChange, clearTrigger = 0, geometry = null }: MapProps) {
+export default function Map({ mode, onGeometryChange, clearTrigger = 0, geometry = null, analysisComplete = false }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const [vertexCount, setVertexCount] = useState(0);
@@ -80,6 +83,47 @@ export default function Map({ mode, onGeometryChange, clearTrigger = 0, geometry
       paint: { "line-color": "#16a34a", "line-width": 2 },
     });
   }, [map, geometry]);
+
+  // Visual feedback when analysis completes
+  useEffect(() => {
+    if (!map) return;
+    if (analysisComplete && geometry?.type === "Polygon") {
+      if (map.getLayer(RESULT_FILL)) {
+        map.setPaintProperty(RESULT_FILL, "fill-opacity", 0.35);
+      }
+    } else if (!analysisComplete && map.getLayer(RESULT_FILL)) {
+      map.setPaintProperty(RESULT_FILL, "fill-opacity", 0.2);
+    }
+
+    if (analysisComplete && geometry?.type === "Point") {
+      const [lng, lat] = geometry.coordinates;
+      const geojson: GeoJSON.Feature = {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [lng, lat] },
+        properties: {},
+      };
+      if (map.getSource(RING_SOURCE)) {
+        (map.getSource(RING_SOURCE) as maplibregl.GeoJSONSource).setData(geojson);
+      } else {
+        map.addSource(RING_SOURCE, { type: "geojson", data: geojson });
+        map.addLayer({
+          id: RING_LAYER,
+          type: "circle",
+          source: RING_SOURCE,
+          paint: {
+            "circle-radius": 18,
+            "circle-color": "transparent",
+            "circle-stroke-color": "#16a34a",
+            "circle-stroke-width": 2,
+            "circle-stroke-opacity": 0.7,
+          },
+        });
+      }
+    } else {
+      if (map.getLayer(RING_LAYER)) map.removeLayer(RING_LAYER);
+      if (map.getSource(RING_SOURCE)) map.removeSource(RING_SOURCE);
+    }
+  }, [map, analysisComplete, geometry]);
 
   const hint =
     mode === "polygon"
