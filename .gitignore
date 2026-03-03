@@ -30,8 +30,8 @@ frontend/.env
 frontend/.env.local
 frontend/.env.*.local
 
-# Generated API client (regenerate via scripts/generate-client.sh)
-frontend/app/client/
+# Generated API client — committed so CI can typecheck without running the backend
+# Regenerate via scripts/generate-client.sh after backend schema changes
 
 # macOS
 .DS_Store
