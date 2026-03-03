@@ -176,6 +176,7 @@ export default function ResultsPanel({
         </p>
       )}
 
+
       {/* Footer */}
       <p className="text-xs text-gray-400 mt-auto">
         Data: ESA WorldCover · GLAD Alerts · Analysis area may be approximate

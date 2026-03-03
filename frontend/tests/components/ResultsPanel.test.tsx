@@ -245,4 +245,5 @@ describe("ResultsPanel", () => {
       screen.queryByTestId("alerts-fetched-at")
     ).not.toBeInTheDocument();
   });
+
 });
