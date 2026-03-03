@@ -1,5 +1,17 @@
-from tests.conftest import seed_alert, seed_land_cover
+from unittest.mock import AsyncMock, patch
+
+from app.config import Settings
+from app.schemas.footprint import AnalyseResponse
 from app.services.land_analysis import analyse_footprint
+from tests.conftest import seed_alert, seed_land_cover
+
+
+def _test_settings() -> Settings:
+    return Settings(
+        gfw_api_key="test-key",
+        gfw_api_base_url="https://example.com",
+        gfw_alerts_lookback_days=365,
+    )
 
 ANALYSIS_POLYGON = {
     "type": "Polygon",
@@ -50,3 +62,41 @@ async def test_analyse_empty_area_returns_safe_defaults(db_session):
     assert result.deforestation_alerts.count == 0
     assert result.deforestation_alerts.area_ha == 0.0
     assert isinstance(result.deforestation_alerts.period, str)
+
+
+# --- Phase 6: GFW integration tests ---
+
+
+async def test_analyse_footprint_calls_ingest(db_session):
+    with patch(
+        "app.services.land_analysis.ingest_alerts_for_geometry",
+        new_callable=AsyncMock,
+        return_value=(0, True),
+    ) as mock_ingest:
+        result = await analyse_footprint(
+            geometry=ANALYSIS_POLYGON,
+            db=db_session,
+            settings=_test_settings(),
+        )
+        mock_ingest.assert_called_once()
+
+    assert isinstance(result, AnalyseResponse)
+    assert result.alerts_live is True
+
+
+async def test_analyse_footprint_falls_back_to_cached_data(db_session):
+    await seed_alert(db_session, 0.05, 5.05, 1.0, "high")
+
+    with patch(
+        "app.services.alert_ingestion.fetch_deforestation_alerts",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("GFW API down"),
+    ):
+        result = await analyse_footprint(
+            geometry=ANALYSIS_POLYGON,
+            db=db_session,
+            settings=_test_settings(),
+        )
+
+    assert result.alerts_live is False
+    assert result.deforestation_alerts.count == 1
