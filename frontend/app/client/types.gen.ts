@@ -50,6 +50,42 @@ export type AnalyseResponse = {
 };
 
 /**
+ * ConfidenceBreakdown
+ */
+export type ConfidenceBreakdown = {
+    /**
+     * Level
+     */
+    level: string;
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Area Ha
+     */
+    area_ha: number;
+};
+
+/**
+ * YearlyAlerts
+ */
+export type YearlyAlerts = {
+    /**
+     * Year
+     */
+    year: number;
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Area Ha
+     */
+    area_ha: number;
+};
+
+/**
  * DeforestationAlerts
  */
 export type DeforestationAlerts = {
@@ -65,6 +101,14 @@ export type DeforestationAlerts = {
      * Period
      */
     period: string;
+    /**
+     * By Confidence
+     */
+    by_confidence: Array<ConfidenceBreakdown>;
+    /**
+     * By Year
+     */
+    by_year: Array<YearlyAlerts>;
 };
 
 /**

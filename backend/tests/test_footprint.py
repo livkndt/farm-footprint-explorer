@@ -36,8 +36,13 @@ def mock_ingest(monkeypatch):
 
 @pytest_asyncio.fixture
 async def client_with_db(db_session):
+    from datetime import date
+
     await seed_land_cover(db_session, _SEED_POLYGON, "tree_cover")
-    await seed_alert(db_session, 0.5, 0.5, 1.0, "high")
+    # Two high-confidence alerts in 2023, one nominal in 2024
+    await seed_alert(db_session, 0.5, 0.5, 1.0, "high", alert_date=date(2023, 6, 15))
+    await seed_alert(db_session, 0.6, 0.6, 0.5, "high", alert_date=date(2023, 9, 1))
+    await seed_alert(db_session, 0.7, 0.7, 0.8, "nominal", alert_date=date(2024, 3, 10))
 
     async def override_db():
         yield db_session
@@ -64,11 +69,39 @@ async def test_analyse_polygon_returns_200_with_data(client_with_db):
     body = response.json()
     assert body["area_ha"] > 0
     assert isinstance(body["land_cover"], list)
-    assert body["deforestation_alerts"]["count"] == 1
+    assert body["deforestation_alerts"]["count"] == 3
     assert body["deforestation_alerts"]["area_ha"] > 0
     assert body["deforestation_alerts"]["period"] != "no alerts"
     assert len(body["centroid"]) == 2
     assert all(isinstance(v, float) for v in body["centroid"])
+
+
+async def test_alerts_by_confidence_breakdown(client_with_db):
+    response = await client_with_db.post("/footprint/analyse", json=POLYGON_BODY)
+    assert response.status_code == 200
+    by_conf = response.json()["deforestation_alerts"]["by_confidence"]
+    assert isinstance(by_conf, list)
+    levels = {item["level"]: item for item in by_conf}
+    assert "high" in levels
+    assert "nominal" in levels
+    assert levels["high"]["count"] == 2
+    assert abs(levels["high"]["area_ha"] - 1.5) < 0.01
+    assert levels["nominal"]["count"] == 1
+    assert abs(levels["nominal"]["area_ha"] - 0.8) < 0.01
+
+
+async def test_alerts_by_year_breakdown(client_with_db):
+    response = await client_with_db.post("/footprint/analyse", json=POLYGON_BODY)
+    assert response.status_code == 200
+    by_year = response.json()["deforestation_alerts"]["by_year"]
+    assert isinstance(by_year, list)
+    years = {item["year"]: item for item in by_year}
+    assert 2023 in years
+    assert 2024 in years
+    assert years[2023]["count"] == 2
+    assert years[2024]["count"] == 1
+    # Years should be returned in ascending order
+    assert by_year == sorted(by_year, key=lambda x: x["year"])
 
 
 async def test_analyse_point_returns_200(client_with_db):
