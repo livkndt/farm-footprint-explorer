@@ -6,47 +6,70 @@ A geospatial web app where users drop a pin or draw a polygon on a map and see e
 
 - **Frontend**: TanStack Start (React 19), MapLibre GL JS, Deck.gl, Tailwind CSS, TypeScript
 - **Backend**: Python FastAPI, SQLAlchemy (async), PostGIS
-- **Database**: PostgreSQL 15 + PostGIS
+- **Database**: PostgreSQL 16 + PostGIS
 - **Infrastructure**: Docker Compose (local), GitHub Actions (CI)
 
 ## Local dev setup
 
-### Prerequisites
+### Option A — Docker Compose (recommended)
 
+Runs the full stack (db, backend, frontend) with a single command.
+
+**Prerequisites:** Docker & Docker Compose
+
+```bash
+# Copy and fill in your env files first
+cp backend/.env.example backend/.env   # add GFW_API_KEY
+
+# Build images and start everything
+docker compose up --build
+
+# First run only: apply database migrations
+docker compose exec backend uv run alembic upgrade head
+```
+
+| Service  | URL |
+|----------|-----|
+| Frontend | http://localhost:5173 |
+| Backend  | http://localhost:8000 |
+| API docs | http://localhost:8000/docs |
+
+To stop: `docker compose down`. To wipe the database volume: `docker compose down -v` (re-run the migration step after).
+
+---
+
+### Option B — Manual (frontend hot-reload, faster iteration)
+
+**Prerequisites:**
 - Docker & Docker Compose
 - [uv](https://docs.astral.sh/uv/) (`brew install uv`)
 - Node.js 22+ with pnpm (`npm install -g pnpm`)
 
-### Database
-
 ```bash
+# Database
 docker compose up -d db
-```
 
-### Backend
-
-```bash
+# Backend
 cd backend
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
-```
 
-API available at `http://localhost:8000`. Docs at `http://localhost:8000/docs`.
-
-### Frontend
-
-```bash
+# Frontend (separate terminal)
 cd frontend
 pnpm install
 pnpm dev
 ```
 
-App available at `http://localhost:3000`.
+| Service  | URL |
+|----------|-----|
+| Frontend | http://localhost:5173 |
+| Backend  | http://localhost:8000 |
+| API docs | http://localhost:8000/docs |
 
 ### Regenerate API client
 
-Run after any backend schema or route change:
+Run after any backend schema or route change (backend must be running):
 
 ```bash
 ./scripts/generate-client.sh
