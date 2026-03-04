@@ -97,6 +97,10 @@ export default function ResultsPanel({
   );
 
   const alerts = result.deforestation_alerts;
+  const maxYearCount =
+    alerts.by_year.length > 0
+      ? Math.max(...alerts.by_year.map((y) => y.count))
+      : 0;
 
   return (
     <div className="absolute right-0 top-0 h-full w-96 bg-white shadow-lg p-6 overflow-y-auto flex flex-col gap-6">
@@ -191,35 +195,32 @@ export default function ResultsPanel({
             )}
 
             {/* Yearly trend */}
-            {alerts.by_year.length > 0 && (() => {
-              const maxCount = Math.max(...alerts.by_year.map((y) => y.count));
-              return (
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                    By year
-                  </p>
-                  <ul className="space-y-1.5">
-                    {alerts.by_year.map((y) => (
-                      <li key={y.year} className="flex items-center gap-2 text-sm">
-                        <span className="w-10 text-right text-gray-500 flex-shrink-0">
-                          {y.year}
-                        </span>
-                        <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                          <div
-                            data-testid={`year-bar-${y.year}`}
-                            className="h-full rounded-full bg-red-400"
-                            style={{ width: `${(y.count / maxCount) * 100}%` }}
-                          />
-                        </div>
-                        <span className="w-6 text-gray-500 flex-shrink-0">
-                          {y.count}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })()}
+            {alerts.by_year.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  By year
+                </p>
+                <ul className="space-y-1.5">
+                  {alerts.by_year.map((y) => (
+                    <li key={y.year} className="flex items-center gap-2 text-sm">
+                      <span className="w-10 text-right text-gray-500 flex-shrink-0">
+                        {y.year}
+                      </span>
+                      <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div
+                          data-testid={`year-bar-${y.year}`}
+                          className="h-full rounded-full bg-red-400"
+                          style={{ width: `${(y.count / maxYearCount) * 100}%` }}
+                        />
+                      </div>
+                      <span className="w-6 text-gray-500 flex-shrink-0">
+                        {y.count}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* GFW info callout */}
             <p
@@ -255,7 +256,6 @@ export default function ResultsPanel({
           Using cached alert data — live fetch unavailable
         </p>
       )}
-
 
       {/* Footer */}
       <p className="text-xs text-gray-400 mt-auto">
