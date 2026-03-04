@@ -45,5 +45,4 @@ frontend/.env.*.local
 pgdata/
 
 # Local claude settings
-.claude
-plan.md
+.claude/settings.local.json
