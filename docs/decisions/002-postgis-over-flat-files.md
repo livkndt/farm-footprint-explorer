@@ -1,7 +1,7 @@
 # ADR 002 — PostGIS over Flat-File Geospatial Storage
 
 **Status:** Accepted
-**Date:** 2025-01
+**Date:** 2026-03
 
 ---
 

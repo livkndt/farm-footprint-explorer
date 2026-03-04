@@ -1,7 +1,7 @@
 # ADR 001 — TanStack Start + MapLibre GL JS
 
 **Status:** Accepted
-**Date:** 2025-01
+**Date:** 2026-03
 
 ---
 

@@ -1,7 +1,7 @@
 # ADR 004 — Auto-Generated API Client (No Hand-Written Fetch Calls)
 
 **Status:** Accepted
-**Date:** 2025-01
+**Date:** 2026-03
 
 ---
 

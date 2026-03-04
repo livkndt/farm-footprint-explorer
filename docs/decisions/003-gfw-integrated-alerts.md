@@ -1,7 +1,7 @@
 # ADR 003 — GFW Integrated Alerts as Deforestation Data Source
 
 **Status:** Accepted
-**Date:** 2025-01
+**Date:** 2026-03
 
 ---
 
