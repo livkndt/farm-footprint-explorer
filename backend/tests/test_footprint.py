@@ -8,11 +8,12 @@ from app.db import get_db
 from app.main import app
 from tests.conftest import seed_alert, seed_land_cover
 
+# 0.5° × 0.5° at the equator ≈ 309,800 ha — well within the 500,000 ha limit
 POLYGON_BODY = {
     "geometry": {
         "type": "Polygon",
         "coordinates": [
-            [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]
+            [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5], [0.0, 0.5], [0.0, 0.0]]
         ],
     }
 }
@@ -39,10 +40,10 @@ async def client_with_db(db_session):
     from datetime import date
 
     await seed_land_cover(db_session, _SEED_POLYGON, "tree_cover")
-    # Two high-confidence alerts in 2023, one nominal in 2024
-    await seed_alert(db_session, 0.5, 0.5, 1.0, "high", alert_date=date(2023, 6, 15))
-    await seed_alert(db_session, 0.6, 0.6, 0.5, "high", alert_date=date(2023, 9, 1))
-    await seed_alert(db_session, 0.7, 0.7, 0.8, "nominal", alert_date=date(2024, 3, 10))
+    # Two high-confidence alerts in 2023, one nominal in 2024 — all inside the 0.5°×0.5° polygon
+    await seed_alert(db_session, 0.1, 0.1, 1.0, "high", alert_date=date(2023, 6, 15))
+    await seed_alert(db_session, 0.2, 0.2, 0.5, "high", alert_date=date(2023, 9, 1))
+    await seed_alert(db_session, 0.3, 0.3, 0.8, "nominal", alert_date=date(2024, 3, 10))
 
     async def override_db():
         yield db_session
@@ -172,3 +173,43 @@ async def test_analyse_buffer_km_zero_returns_422():
             json={**POLYGON_BODY, "buffer_km": 0},
         )
     assert response.status_code == 422
+
+
+# --- Size validation tests ---
+
+# A polygon that spans roughly 100° × 100° — far larger than the limit
+_OVERSIZED_POLYGON = {
+    "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [-50.0, -50.0],
+                [50.0, -50.0],
+                [50.0, 50.0],
+                [-50.0, 50.0],
+                [-50.0, -50.0],
+            ]
+        ],
+    }
+}
+
+
+async def test_oversized_polygon_returns_422():
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post("/footprint/analyse", json=_OVERSIZED_POLYGON)
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert any("area" in str(d).lower() for d in detail)
+
+
+async def test_oversized_polygon_error_mentions_limit():
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post("/footprint/analyse", json=_OVERSIZED_POLYGON)
+    assert response.status_code == 422
+    # The error message should mention the maximum area so users know the constraint
+    body_text = response.text
+    assert "500,000" in body_text or "500000" in body_text

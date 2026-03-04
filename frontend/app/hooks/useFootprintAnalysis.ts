@@ -1,6 +1,12 @@
 import { useState, useRef, useCallback } from "react";
 import { analyseFootprintAnalysePost } from "../client";
-import type { AnalyseResponse, AnalyseRequest } from "../client";
+import type { AnalyseResponse, AnalyseRequest, HttpValidationError } from "../client";
+
+function extractErrorMessage(error: unknown): string {
+  const validationError = error as HttpValidationError;
+  const msg = validationError?.detail?.[0]?.msg;
+  return msg ?? "Something went wrong analysing this area";
+}
 
 type GeoJSONGeometry =
   | { type: "Point"; coordinates: [number, number] }
@@ -38,7 +44,7 @@ export function useFootprintAnalysis(): UseFootprintAnalysisReturn {
       .then((response) => {
         if (controller.signal.aborted) return;
         if (response.error) {
-          setError("Something went wrong analysing this area");
+          setError(extractErrorMessage(response.error));
           setIsLoading(false);
           return;
         }

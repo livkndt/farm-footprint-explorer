@@ -15,6 +15,7 @@ dependencies = [
     "pydantic-settings",
     "httpx",
     "python-dotenv",
+    "pyproj>=3.7.2",
 ]
 
 [dependency-groups]

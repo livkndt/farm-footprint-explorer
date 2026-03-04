@@ -68,7 +68,7 @@ describe("useFootprintAnalysis", () => {
     expect(result.current.error).toBeNull();
   });
 
-  it("sets error on failure and clears isLoading", async () => {
+  it("sets generic error on failure with no detail", async () => {
     mockPost.mockResolvedValue({
       data: undefined,
       error: { detail: [] },
@@ -87,6 +87,28 @@ describe("useFootprintAnalysis", () => {
     );
     expect(result.current.isLoading).toBe(false);
     expect(result.current.result).toBeNull();
+  });
+
+  it("surfaces the backend validation message when a 422 detail msg is present", async () => {
+    const backendMsg =
+      "Polygon area (1,500,000 ha) exceeds the maximum allowed analysis area of 500,000 ha. Please draw a smaller region.";
+    mockPost.mockResolvedValue({
+      data: undefined,
+      error: {
+        detail: [{ loc: ["body"], msg: backendMsg, type: "value_error" }],
+      },
+      request: {} as Request,
+      response: {} as Response,
+    } as never);
+
+    const { result } = renderHook(() => useFootprintAnalysis());
+
+    await act(async () => {
+      result.current.analyse(pointGeometry);
+    });
+
+    expect(result.current.error).toBe(backendMsg);
+    expect(result.current.isLoading).toBe(false);
   });
 
   it("reset clears result, error, and isLoading", async () => {
