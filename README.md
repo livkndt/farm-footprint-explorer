@@ -62,9 +62,12 @@ cd backend && uv run pytest --cov=app
 cd frontend && pnpm test
 ```
 
-## PR workflow
+## Contributing
 
-- All work happens on feature branches — never commit directly to `main`
-- Each PR should do one thing and have a passing CI before merge
-- CI runs `pytest` (backend) and `vitest` + `tsc --noEmit` (frontend) on every push
-- Branch protection on `main` requires passing CI
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, commit, and PR conventions.
+
+## Documentation
+
+- [Architecture overview](docs/architecture.md)
+- [Architecture decision records](docs/decisions/)
+- [Runbooks](docs/runbooks/) — local dev setup, migrations, GFW integration testing
