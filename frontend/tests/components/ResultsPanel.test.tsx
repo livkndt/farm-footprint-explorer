@@ -25,10 +25,29 @@ const baseResult = {
   deforestation_alerts: {
     count: 0,
     area_ha: 0,
-    period: "2020–2023",
+    period: "no alerts",
+    by_confidence: [],
+    by_year: [],
   },
   alerts_live: true,
   alerts_fetched_at: "2024-03-15T10:30:00Z",
+};
+
+const alertsResult = {
+  ...baseResult,
+  deforestation_alerts: {
+    count: 3,
+    area_ha: 2.3,
+    period: "2023-06-15/2024-03-10",
+    by_confidence: [
+      { level: "high", count: 2, area_ha: 1.5 },
+      { level: "nominal", count: 1, area_ha: 0.8 },
+    ],
+    by_year: [
+      { year: 2023, count: 2, area_ha: 1.5 },
+      { year: 2024, count: 1, area_ha: 0.8 },
+    ],
+  },
 };
 
 const noOp = vi.fn();
@@ -179,16 +198,13 @@ describe("ResultsPanel", () => {
       <ResultsPanel
         geometry={pointGeometry}
         isLoading={false}
-        result={{
-          ...baseResult,
-          deforestation_alerts: { count: 5, area_ha: 12.1, period: "2023" },
-        }}
+        result={alertsResult}
         error={null}
         onRetry={noOp}
       />
     );
     expect(screen.getByTestId("deforestation-warning")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
   it("renders no-alerts message when count is 0", () => {
@@ -244,6 +260,81 @@ describe("ResultsPanel", () => {
     expect(
       screen.queryByTestId("alerts-fetched-at")
     ).not.toBeInTheDocument();
+  });
+
+  // --- Phase 7: richer alert insights ---
+
+  it("renders confidence breakdown rows for each level when alerts present", () => {
+    render(
+      <ResultsPanel
+        geometry={pointGeometry}
+        isLoading={false}
+        result={alertsResult}
+        error={null}
+        onRetry={noOp}
+      />
+    );
+    expect(screen.getByTestId("confidence-row-high")).toBeInTheDocument();
+    expect(screen.getByTestId("confidence-row-nominal")).toBeInTheDocument();
+    expect(screen.getByText("high")).toBeInTheDocument();
+    expect(screen.getByText("nominal")).toBeInTheDocument();
+  });
+
+  it("does not render confidence breakdown when no alerts", () => {
+    render(
+      <ResultsPanel
+        geometry={pointGeometry}
+        isLoading={false}
+        result={baseResult}
+        error={null}
+        onRetry={noOp}
+      />
+    );
+    expect(
+      screen.queryByTestId("confidence-row-high")
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders yearly trend bars for each year when alerts present", () => {
+    render(
+      <ResultsPanel
+        geometry={pointGeometry}
+        isLoading={false}
+        result={alertsResult}
+        error={null}
+        onRetry={noOp}
+      />
+    );
+    expect(screen.getByTestId("year-bar-2023")).toBeInTheDocument();
+    expect(screen.getByTestId("year-bar-2024")).toBeInTheDocument();
+    expect(screen.getByText("2023")).toBeInTheDocument();
+    expect(screen.getByText("2024")).toBeInTheDocument();
+  });
+
+  it("does not render yearly breakdown when no alerts", () => {
+    render(
+      <ResultsPanel
+        geometry={pointGeometry}
+        isLoading={false}
+        result={baseResult}
+        error={null}
+        onRetry={noOp}
+      />
+    );
+    expect(screen.queryByTestId("year-bar-2023")).not.toBeInTheDocument();
+  });
+
+  it("renders the GFW info callout when alerts are present", () => {
+    render(
+      <ResultsPanel
+        geometry={pointGeometry}
+        isLoading={false}
+        result={alertsResult}
+        error={null}
+        onRetry={noOp}
+      />
+    );
+    expect(screen.getByTestId("alerts-info-callout")).toBeInTheDocument();
   });
 
 });

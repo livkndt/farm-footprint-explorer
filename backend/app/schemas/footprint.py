@@ -81,10 +81,24 @@ class LandCoverItem(BaseModel):
     percentage: float
 
 
+class ConfidenceBreakdown(BaseModel):
+    level: str
+    count: int
+    area_ha: float
+
+
+class YearlyAlerts(BaseModel):
+    year: int
+    count: int
+    area_ha: float
+
+
 class DeforestationAlerts(BaseModel):
     count: int
     area_ha: float
     period: str
+    by_confidence: list[ConfidenceBreakdown]
+    by_year: list[YearlyAlerts]
 
 
 class AnalyseResponse(BaseModel):

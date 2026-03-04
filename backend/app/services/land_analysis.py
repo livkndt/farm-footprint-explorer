@@ -9,7 +9,13 @@ from shapely.geometry import shape
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.footprint import AnalyseResponse, DeforestationAlerts, LandCoverItem
+from app.schemas.footprint import (
+    AnalyseResponse,
+    ConfidenceBreakdown,
+    DeforestationAlerts,
+    LandCoverItem,
+    YearlyAlerts,
+)
 from app.services.alert_ingestion import ingest_alerts_for_geometry
 
 logger = logging.getLogger(__name__)
@@ -124,6 +130,46 @@ async def analyse_footprint(
         )
     ).mappings().one()
 
+    # 4. Confidence breakdown
+    conf_rows = (
+        await db.execute(
+            text(f"""
+                SELECT
+                    da.confidence                      AS level,
+                    COUNT(*)                           AS count,
+                    COALESCE(SUM(da.area_ha), 0.0)     AS total_area_ha
+                FROM deforestation_alerts da
+                WHERE ST_Within(da.geometry, {geom})
+                GROUP BY da.confidence
+                ORDER BY
+                    CASE da.confidence
+                        WHEN 'high'    THEN 1
+                        WHEN 'nominal' THEN 2
+                        WHEN 'low'     THEN 3
+                        ELSE 4
+                    END
+            """),
+            params,
+        )
+    ).mappings().all()
+
+    # 5. Yearly breakdown
+    year_rows = (
+        await db.execute(
+            text(f"""
+                SELECT
+                    EXTRACT(YEAR FROM da.alert_date)::int  AS year,
+                    COUNT(*)                               AS count,
+                    COALESCE(SUM(da.area_ha), 0.0)         AS total_area_ha
+                FROM deforestation_alerts da
+                WHERE ST_Within(da.geometry, {geom})
+                GROUP BY EXTRACT(YEAR FROM da.alert_date)
+                ORDER BY year
+            """),
+            params,
+        )
+    ).mappings().all()
+
     count = int(alerts_row["count"])
     period = (
         f"{alerts_row['min_date'].isoformat()}/{alerts_row['max_date'].isoformat()}"
@@ -138,6 +184,22 @@ async def analyse_footprint(
             count=count,
             area_ha=float(alerts_row["total_area_ha"]),
             period=period,
+            by_confidence=[
+                ConfidenceBreakdown(
+                    level=r["level"],
+                    count=int(r["count"]),
+                    area_ha=float(r["total_area_ha"]),
+                )
+                for r in conf_rows
+            ],
+            by_year=[
+                YearlyAlerts(
+                    year=int(r["year"]),
+                    count=int(r["count"]),
+                    area_ha=float(r["total_area_ha"]),
+                )
+                for r in year_rows
+            ],
         ),
         centroid=[float(area_row["lon"]), float(area_row["lat"])],
         alerts_live=alerts_live,

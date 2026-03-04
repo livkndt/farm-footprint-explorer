@@ -12,6 +12,16 @@ interface ResultsPanelProps {
   onRetry: () => void;
 }
 
+const CONFIDENCE_COLORS: Record<string, string> = {
+  high: "#dc2626",
+  nominal: "#d97706",
+  low: "#eab308",
+};
+
+function confidenceColor(level: string): string {
+  return CONFIDENCE_COLORS[level] ?? "#9ca3af";
+}
+
 const COVER_COLORS: Record<string, string> = {
   tree_cover: "#2d6a4f",
   cropland: "#d4a017",
@@ -137,20 +147,90 @@ export default function ResultsPanel({
       </div>
 
       {/* Deforestation alerts */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-semibold text-gray-700">
           Deforestation alerts
         </h3>
         {alerts.count > 0 ? (
-          <div
-            data-testid="deforestation-warning"
-            className="rounded p-3 bg-amber-50 border border-amber-200"
-          >
-            <p className="text-2xl font-bold text-red-600">{alerts.count}</p>
-            <p className="text-sm text-gray-700">
-              {formatHa(alerts.area_ha)} ha affected · {alerts.period}
+          <>
+            <div
+              data-testid="deforestation-warning"
+              className="rounded p-3 bg-amber-50 border border-amber-200"
+            >
+              <p className="text-2xl font-bold text-red-600">{alerts.count}</p>
+              <p className="text-sm text-gray-700">
+                {formatHa(alerts.area_ha)} ha affected · {alerts.period}
+              </p>
+            </div>
+
+            {/* Confidence breakdown */}
+            {alerts.by_confidence.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  By confidence
+                </p>
+                <ul className="space-y-1">
+                  {alerts.by_confidence.map((c) => (
+                    <li
+                      key={c.level}
+                      data-testid={`confidence-row-${c.level}`}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: confidenceColor(c.level) }}
+                      />
+                      <span className="text-gray-600 capitalize">{c.level}</span>
+                      <span className="ml-auto text-gray-500">
+                        {c.count} alert{c.count !== 1 ? "s" : ""} · {formatHa(c.area_ha)} ha
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Yearly trend */}
+            {alerts.by_year.length > 0 && (() => {
+              const maxCount = Math.max(...alerts.by_year.map((y) => y.count));
+              return (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                    By year
+                  </p>
+                  <ul className="space-y-1.5">
+                    {alerts.by_year.map((y) => (
+                      <li key={y.year} className="flex items-center gap-2 text-sm">
+                        <span className="w-10 text-right text-gray-500 flex-shrink-0">
+                          {y.year}
+                        </span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div
+                            data-testid={`year-bar-${y.year}`}
+                            className="h-full rounded-full bg-red-400"
+                            style={{ width: `${(y.count / maxCount) * 100}%` }}
+                          />
+                        </div>
+                        <span className="w-6 text-gray-500 flex-shrink-0">
+                          {y.count}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
+
+            {/* GFW info callout */}
+            <p
+              data-testid="alerts-info-callout"
+              className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100"
+            >
+              GFW Integrated Alerts combine satellite data from GLAD, RADD, and
+              CCDC. High-confidence alerts have been confirmed by at least two
+              independent systems.
             </p>
-          </div>
+          </>
         ) : (
           <p className="text-sm text-gray-500">
             No deforestation alerts detected in this area
