@@ -1,8 +1,13 @@
 import { useState, useCallback } from "react";
+import turfArea from "@turf/area";
 import Map from "../components/Map";
 import DrawControls from "../components/DrawControls";
 import ResultsPanel from "../components/ResultsPanel";
 import { useFootprintAnalysis } from "../hooks/useFootprintAnalysis";
+
+// Must match MAX_ANALYSIS_AREA_HA in backend/app/schemas/footprint.py
+const MAX_AREA_HA = 500_000;
+const MAX_AREA_M2 = MAX_AREA_HA * 10_000;
 
 type DrawMode = "pin" | "polygon" | null;
 
@@ -14,6 +19,7 @@ export default function HomePage() {
   const [mode, setMode] = useState<DrawMode>(null);
   const [geometry, setGeometry] = useState<GeoJSONGeometry | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
+  const [sizeError, setSizeError] = useState<string | null>(null);
 
   const { analyse, result, isLoading, error, reset } = useFootprintAnalysis();
 
@@ -25,12 +31,26 @@ export default function HomePage() {
   const handleGeometryChange = useCallback(
     (g: GeoJSONGeometry | null) => {
       setGeometry(g);
-      if (g) {
-        analyse(g);
-        setMode(null);
-      } else {
+      setSizeError(null);
+
+      if (!g) {
         reset();
+        return;
       }
+
+      if (g.type === "Polygon") {
+        const areaM2 = turfArea(g as GeoJSON.Polygon);
+        if (areaM2 > MAX_AREA_M2) {
+          const areaHa = Math.round(areaM2 / 10_000).toLocaleString("en-US");
+          setSizeError(
+            `Polygon area (${areaHa} ha) exceeds the maximum allowed analysis area of ${MAX_AREA_HA.toLocaleString("en-US")} ha. Please draw a smaller region.`
+          );
+          return;
+        }
+      }
+
+      analyse(g);
+      setMode(null);
     },
     [analyse, reset]
   );
@@ -60,7 +80,7 @@ export default function HomePage() {
         geometry={geometry}
         isLoading={isLoading}
         result={result}
-        error={error}
+        error={sizeError ?? error}
         onRetry={handleRetry}
       />
     </main>

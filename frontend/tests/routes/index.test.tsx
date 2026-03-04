@@ -22,6 +22,24 @@ vi.mock("../../app/components/Map", () => ({
         data-testid="trigger-clear"
         onClick={() => onGeometryChange(null)}
       />
+      {/* A 100° × 100° polygon — far exceeds the 500,000 ha limit */}
+      <button
+        data-testid="trigger-large-polygon"
+        onClick={() =>
+          onGeometryChange({
+            type: "Polygon",
+            coordinates: [
+              [
+                [-50, -50],
+                [50, -50],
+                [50, 50],
+                [-50, 50],
+                [-50, -50],
+              ],
+            ],
+          })
+        }
+      />
     </div>
   ),
 }));
@@ -82,5 +100,25 @@ describe("HomePage", () => {
     await userEvent.click(screen.getByTestId("trigger-point"));
     await userEvent.click(screen.getByTestId("trigger-clear"));
     expect(mockReset).toHaveBeenCalledOnce();
+  });
+
+  // --- Size validation pre-flight tests ---
+
+  it("does not call analyse for an oversized polygon and shows a size error", async () => {
+    render(<HomePage />);
+    await userEvent.click(screen.getByTestId("trigger-large-polygon"));
+    expect(mockAnalyse).not.toHaveBeenCalled();
+    expect(screen.getByText(/maximum allowed/i)).toBeInTheDocument();
+  });
+
+  it("clears the size error when the user draws a new valid geometry", async () => {
+    render(<HomePage />);
+    // Draw oversized polygon first
+    await userEvent.click(screen.getByTestId("trigger-large-polygon"));
+    expect(screen.getByText(/maximum allowed/i)).toBeInTheDocument();
+    // Then draw a valid point — error should disappear
+    await userEvent.click(screen.getByTestId("trigger-point"));
+    expect(screen.queryByText(/maximum allowed/i)).not.toBeInTheDocument();
+    expect(mockAnalyse).toHaveBeenCalledOnce();
   });
 });
