@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 from app.config import Settings
 from app.schemas.footprint import AnalyseResponse
-from app.services.land_analysis import analyse_footprint
+from app.services.land_analysis import _to_gfw_polygon, analyse_footprint
 from tests.conftest import seed_alert, seed_land_cover
 
 
@@ -100,3 +100,49 @@ async def test_analyse_footprint_falls_back_to_cached_data(db_session):
 
     assert result.alerts_live is False
     assert result.deforestation_alerts.count == 1
+
+
+# ---------------------------------------------------------------------------
+# _to_gfw_polygon — pure unit tests (no DB required)
+# ---------------------------------------------------------------------------
+
+_POLYGON = {
+    "type": "Polygon",
+    "coordinates": [[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]],
+}
+_POINT = {"type": "Point", "coordinates": [10.0, 20.0]}
+
+
+def test_to_gfw_polygon_returns_polygon_unchanged_when_no_buffer():
+    result = _to_gfw_polygon(_POLYGON, buffer_km=None)
+    assert result is _POLYGON
+
+
+def test_to_gfw_polygon_buffers_point_to_polygon():
+    result = _to_gfw_polygon(_POINT, buffer_km=None)
+    assert result["type"] == "Polygon"
+    lons = [c[0] for c in result["coordinates"][0]]
+    lats = [c[1] for c in result["coordinates"][0]]
+    assert min(lons) < 10.0 < max(lons)
+    assert min(lats) < 20.0 < max(lats)
+
+
+def test_to_gfw_polygon_buffers_polygon_when_buffer_km_given():
+    result = _to_gfw_polygon(_POLYGON, buffer_km=10.0)
+    assert result["type"] == "Polygon"
+    lons = [c[0] for c in result["coordinates"][0]]
+    lats = [c[1] for c in result["coordinates"][0]]
+    assert min(lons) < 0.0  # extends beyond original west edge
+    assert max(lons) > 1.0  # extends beyond original east edge
+
+
+def test_to_gfw_polygon_larger_buffer_produces_larger_polygon():
+    def bbox_area(geom: dict) -> float:
+        coords = geom["coordinates"][0]
+        lons = [c[0] for c in coords]
+        lats = [c[1] for c in coords]
+        return (max(lons) - min(lons)) * (max(lats) - min(lats))
+
+    small = _to_gfw_polygon(_POINT, buffer_km=1.0)
+    large = _to_gfw_polygon(_POINT, buffer_km=10.0)
+    assert bbox_area(large) > bbox_area(small)
