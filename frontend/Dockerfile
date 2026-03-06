@@ -1,4 +1,4 @@
-FROM node:22-slim
+FROM node:22.22.0-trixie-slim
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
