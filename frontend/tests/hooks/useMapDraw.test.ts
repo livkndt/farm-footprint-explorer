@@ -2,21 +2,26 @@ import { renderHook, act } from "@testing-library/react";
 import { vi, beforeEach, describe, it, expect } from "vitest";
 import { getMockMap, getMockMarker } from "../__mocks__/maplibre-gl";
 import { useMapMarker, useMapPolygonDraw } from "../../app/hooks/useMapDraw";
-import type maplibregl from "maplibre-gl";
 
-const mockMap = getMockMap() as unknown as maplibregl.Map;
+// Cast once to any so mock-specific properties (.mock.calls, .mockReturnValue, etc.)
+// are accessible without repeated double-casts, and the value is accepted by hooks
+// that expect maplibregl.Map.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockMap = getMockMap() as any;
 
+/** Returns the most-recently-registered handler for the given event name. */
 function getHandler(event: string): (...args: unknown[]) => void {
-  const on = (mockMap as { on: ReturnType<typeof vi.fn> }).on;
-  const call = on.mock.calls.findLast(([e]: [string]) => e === event);
-  if (!call) throw new Error(`No handler registered for "${event}"`);
-  return call[1] as (...args: unknown[]) => void;
+  const calls: [string, Function][] = mockMap.on.mock.calls;
+  const matching = calls.filter(([e]) => e === event);
+  if (!matching.length) throw new Error(`No handler registered for "${event}"`);
+  return matching[matching.length - 1][1] as (...args: unknown[]) => void;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Restore default project implementation after any per-test override
-  (mockMap as { project: ReturnType<typeof vi.fn> }).project.mockReturnValue({ x: 0, y: 0 });
+  // Restore default after any per-test override (clearAllMocks keeps implementations,
+  // but a test may have called .mockImplementation — reset to known default).
+  mockMap.project.mockReturnValue({ x: 0, y: 0 });
 });
 
 // ---------------------------------------------------------------------------
@@ -25,17 +30,13 @@ beforeEach(() => {
 
 describe("useMapMarker", () => {
   it("registers a click handler when mode is 'pin'", () => {
-    const onGeometryChange = vi.fn();
-    renderHook(() => useMapMarker(mockMap, "pin", 0, onGeometryChange));
-    expect((mockMap as { on: ReturnType<typeof vi.fn> }).on).toHaveBeenCalledWith(
-      "click",
-      expect.any(Function),
-    );
+    renderHook(() => useMapMarker(mockMap, "pin", 0, vi.fn()));
+    expect(mockMap.on).toHaveBeenCalledWith("click", expect.any(Function));
   });
 
   it("does not register a click handler when mode is not 'pin'", () => {
     renderHook(() => useMapMarker(mockMap, "polygon", 0, vi.fn()));
-    expect((mockMap as { on: ReturnType<typeof vi.fn> }).on).not.toHaveBeenCalled();
+    expect(mockMap.on).not.toHaveBeenCalled();
   });
 
   it("calls onGeometryChange with Point geometry on map click", () => {
@@ -51,11 +52,10 @@ describe("useMapMarker", () => {
   });
 
   it("removes the previous marker before placing a new one", () => {
-    const onGeometryChange = vi.fn();
-    renderHook(() => useMapMarker(mockMap, "pin", 0, onGeometryChange));
+    renderHook(() => useMapMarker(mockMap, "pin", 0, vi.fn()));
+    const marker = getMockMarker();
 
     act(() => getHandler("click")({ lngLat: { lng: 1, lat: 1 } }));
-    const marker = getMockMarker();
     act(() => getHandler("click")({ lngLat: { lng: 2, lat: 2 } }));
 
     expect(marker.remove).toHaveBeenCalledTimes(1);
@@ -68,7 +68,6 @@ describe("useMapMarker", () => {
       { initialProps: { clearTrigger: 0 } },
     );
 
-    // Place a marker first
     act(() => getHandler("click")({ lngLat: { lng: 1, lat: 1 } }));
     vi.clearAllMocks();
 
@@ -79,10 +78,7 @@ describe("useMapMarker", () => {
   it("removes the click handler on unmount", () => {
     const { unmount } = renderHook(() => useMapMarker(mockMap, "pin", 0, vi.fn()));
     unmount();
-    expect((mockMap as { off: ReturnType<typeof vi.fn> }).off).toHaveBeenCalledWith(
-      "click",
-      expect.any(Function),
-    );
+    expect(mockMap.off).toHaveBeenCalledWith("click", expect.any(Function));
   });
 });
 
@@ -93,17 +89,15 @@ describe("useMapMarker", () => {
 describe("useMapPolygonDraw", () => {
   it("registers click, mousemove, and dblclick handlers when mode is 'polygon'", () => {
     renderHook(() => useMapPolygonDraw(mockMap, "polygon", 0, vi.fn(), vi.fn()));
-    const registeredEvents = (
-      mockMap as { on: ReturnType<typeof vi.fn> }
-    ).on.mock.calls.map(([e]: [string]) => e);
-    expect(registeredEvents).toContain("click");
-    expect(registeredEvents).toContain("mousemove");
-    expect(registeredEvents).toContain("dblclick");
+    const events: string[] = mockMap.on.mock.calls.map(([e]: [string]) => e);
+    expect(events).toContain("click");
+    expect(events).toContain("mousemove");
+    expect(events).toContain("dblclick");
   });
 
   it("does not register handlers when mode is not 'polygon'", () => {
     renderHook(() => useMapPolygonDraw(mockMap, "pin", 0, vi.fn(), vi.fn()));
-    expect((mockMap as { on: ReturnType<typeof vi.fn> }).on).not.toHaveBeenCalled();
+    expect(mockMap.on).not.toHaveBeenCalled();
   });
 
   it("adds a vertex and increments count on click", () => {
@@ -121,7 +115,7 @@ describe("useMapPolygonDraw", () => {
     const onGeometryChange = vi.fn();
     renderHook(() => useMapPolygonDraw(mockMap, "polygon", 0, onGeometryChange, vi.fn()));
 
-    // Add only 1 vertex, then dblclick
+    // Only 1 vertex → dblclick does nothing
     act(() => getHandler("click")({ lngLat: { lng: 10, lat: 20 } }));
     act(() => getHandler("dblclick")({ preventDefault: vi.fn() }));
 
@@ -130,16 +124,14 @@ describe("useMapPolygonDraw", () => {
 
   it("dblclick with 3+ vertices closes the polygon", () => {
     const onGeometryChange = vi.fn();
-    // project returns different x per longitude so snap (distance ≤ 10px) never triggers
-    (mockMap as { project: ReturnType<typeof vi.fn> }).project.mockImplementation(
-      (lngLat: [number, number]) => ({ x: lngLat[0] * 100, y: 0 }),
-    );
+    // project returns distinct x per longitude so snap (distance ≤ 10px) never triggers
+    mockMap.project.mockImplementation(([lng]: [number]) => ({ x: lng * 100, y: 0 }));
 
     renderHook(() => useMapPolygonDraw(mockMap, "polygon", 0, onGeometryChange, vi.fn()));
 
     act(() => getHandler("click")({ lngLat: { lng: 10, lat: 20 } }));
-    act(() => getHandler("click")({ lngLat: { lng: 11, lat: 21 } }));
-    act(() => getHandler("click")({ lngLat: { lng: 12, lat: 22 } }));
+    act(() => getHandler("click")({ lngLat: { lng: 11, lat: 21 } })); // dist 100 > 10 → no snap
+    act(() => getHandler("click")({ lngLat: { lng: 12, lat: 22 } })); // dist 200 > 10 → no snap
     act(() => getHandler("dblclick")({ preventDefault: vi.fn() }));
 
     expect(onGeometryChange).toHaveBeenCalledWith({
@@ -149,13 +141,13 @@ describe("useMapPolygonDraw", () => {
   });
 
   it("snap-to-close: click near the first vertex closes the polygon", () => {
-    // project returns {x:0, y:0} for all points (distance = 0 ≤ 10px → snap)
+    // project returns {x:0, y:0} for all points → distance = 0 ≤ 10px → snap
     const onGeometryChange = vi.fn();
     renderHook(() => useMapPolygonDraw(mockMap, "polygon", 0, onGeometryChange, vi.fn()));
 
     act(() => getHandler("click")({ lngLat: { lng: 10, lat: 20 } }));
     act(() => getHandler("click")({ lngLat: { lng: 11, lat: 21 } }));
-    // 3rd click snaps to first vertex → closes polygon
+    // 3rd click: snap triggers because project returns same pixel for all coords
     act(() => getHandler("click")({ lngLat: { lng: 10, lat: 20 } }));
 
     expect(onGeometryChange).toHaveBeenCalledWith({
@@ -174,8 +166,8 @@ describe("useMapPolygonDraw", () => {
     );
 
     vi.clearAllMocks();
-
     act(() => rerender({ clearTrigger: 1 }));
+
     expect(onGeometryChange).toHaveBeenCalledWith(null);
     expect(setVertexCount).toHaveBeenCalledWith(0);
   });
@@ -186,9 +178,8 @@ describe("useMapPolygonDraw", () => {
     );
     unmount();
 
-    const off = (mockMap as { off: ReturnType<typeof vi.fn> }).off;
-    expect(off).toHaveBeenCalledWith("click", expect.any(Function));
-    expect(off).toHaveBeenCalledWith("mousemove", expect.any(Function));
-    expect(off).toHaveBeenCalledWith("dblclick", expect.any(Function));
+    expect(mockMap.off).toHaveBeenCalledWith("click", expect.any(Function));
+    expect(mockMap.off).toHaveBeenCalledWith("mousemove", expect.any(Function));
+    expect(mockMap.off).toHaveBeenCalledWith("dblclick", expect.any(Function));
   });
 });
