@@ -12,7 +12,7 @@ jobs:
 
     services:
       db:
-        image: postgis/postgis:15-3.3
+        image: postgis/postgis:16-3.4
         env:
           POSTGRES_USER: farmuser
           POSTGRES_PASSWORD: farmpass
@@ -38,7 +38,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --dev
+
+      - name: Lint
+        run: uv run ruff check app/
 
       - name: Run Alembic migrations
         env:
@@ -52,4 +55,4 @@ jobs:
           GFW_API_KEY: test-key-not-real
           GFW_API_BASE_URL: https://data-api.globalforestwatch.org
           GFW_ALERTS_LOOKBACK_DAYS: 365
-        run: uv run pytest --cov=app --cov-report=term-missing
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=75

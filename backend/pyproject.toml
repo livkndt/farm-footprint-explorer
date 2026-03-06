@@ -25,6 +25,7 @@ dev = [
     "httpx",
     "pytest-cov",
     "respx",
+    "ruff",
 ]
 
 [tool.uv]
