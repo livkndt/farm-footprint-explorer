@@ -163,7 +163,8 @@ export default function ResultsPanel({
             >
               <p className="text-2xl font-bold text-red-600">{alerts.count}</p>
               <p className="text-sm text-gray-700">
-                {formatHa(alerts.area_ha)} ha affected · {alerts.period}
+                {alerts.area_ha > 0 && `${formatHa(alerts.area_ha)} ha affected · `}
+                {alerts.period}
               </p>
             </div>
 
@@ -186,7 +187,8 @@ export default function ResultsPanel({
                       />
                       <span className="text-gray-600 capitalize">{c.level}</span>
                       <span className="ml-auto text-gray-500">
-                        {c.count} alert{c.count !== 1 ? "s" : ""} · {formatHa(c.area_ha)} ha
+                        {c.count} alert{c.count !== 1 ? "s" : ""}
+                        {c.area_ha > 0 && ` · ${formatHa(c.area_ha)} ha`}
                       </span>
                     </li>
                   ))}

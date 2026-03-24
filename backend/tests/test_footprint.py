@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.main import app
+from app.schemas.footprint import LandCoverItem
 from tests.conftest import seed_alert, seed_land_cover
 
 # 0.5° × 0.5° at the equator ≈ 309,800 ha — well within the 500,000 ha limit
@@ -32,6 +33,23 @@ def mock_ingest(monkeypatch):
 
     monkeypatch.setattr(
         la, "ingest_alerts_for_geometry", AsyncMock(return_value=(0, True))
+    )
+
+
+@pytest.fixture(autouse=True)
+def mock_land_cover(monkeypatch):
+    """Return deterministic land cover so tests don't call the GFW land cover API."""
+    import app.services.land_analysis as la
+
+    monkeypatch.setattr(
+        la,
+        "fetch_land_cover",
+        AsyncMock(
+            return_value=[
+                LandCoverItem(type="tree_cover", percentage=70.0),
+                LandCoverItem(type="cropland", percentage=30.0),
+            ]
+        ),
     )
 
 
@@ -162,6 +180,16 @@ async def test_analyse_polygon_ring_too_short_returns_422():
             json={"geometry": {"type": "Polygon", "coordinates": [[[0.0, 0.0], [1.0, 0.0]]]}},
         )
     assert response.status_code == 422
+
+
+async def test_analyse_polygon_returns_land_cover(client_with_db):
+    response = await client_with_db.post("/footprint/analyse", json=POLYGON_BODY)
+    assert response.status_code == 200
+    land_cover = response.json()["land_cover"]
+    assert len(land_cover) > 0
+    assert all("type" in item and "percentage" in item for item in land_cover)
+    types = {item["type"] for item in land_cover}
+    assert "tree_cover" in types
 
 
 async def test_analyse_buffer_km_zero_returns_422():
