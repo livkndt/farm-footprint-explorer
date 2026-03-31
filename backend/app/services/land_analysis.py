@@ -17,6 +17,7 @@ from app.schemas.footprint import (
     YearlyAlerts,
 )
 from app.services.alert_ingestion import ingest_alerts_for_geometry
+from app.services.land_cover_client import fetch_land_cover
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +62,16 @@ async def analyse_footprint(
     settings=None,
 ) -> AnalyseResponse:
     alerts_live = False
+    land_cover: list[LandCoverItem] = []
+
     if settings is not None:
         gfw_geom = _to_gfw_polygon(geometry, buffer_km)
         _, alerts_live = await ingest_alerts_for_geometry(gfw_geom, db, settings)
+        land_cover = await fetch_land_cover(
+            geometry=gfw_geom,
+            api_key=settings.gfw_api_key,
+            base_url=settings.gfw_api_base_url,
+        )
 
     buffer_m = (buffer_km * 1000) if buffer_km is not None else _DEFAULT_BUFFER_M
     params = {"geojson": json.dumps(geometry), "buffer_m": float(buffer_m)}
@@ -82,37 +90,38 @@ async def analyse_footprint(
         )
     ).mappings().one()
 
-    # 2. Land cover intersection — grouped by cover_type
-    lc_rows = (
-        await db.execute(
-            text(f"""
-                SELECT
-                    lcp.cover_type,
-                    SUM(
-                        ST_Area(
-                            ST_Transform(ST_Intersection(lcp.geometry, {geom}), 3857)
-                        )
-                    ) AS intersect_m2
-                FROM land_cover_polygons lcp
-                WHERE ST_Intersects(lcp.geometry, {geom})
-                GROUP BY lcp.cover_type
-            """),
-            params,
-        )
-    ).mappings().all()
-
-    total_m2 = sum(float(r["intersect_m2"]) for r in lc_rows)
-    land_cover = (
-        [
-            LandCoverItem(
-                type=r["cover_type"],
-                percentage=round(float(r["intersect_m2"]) / total_m2 * 100, 2),
+    # 2. Land cover — API result used when available; DB intersection query as fallback.
+    if not land_cover:
+        lc_rows = (
+            await db.execute(
+                text(f"""
+                    SELECT
+                        lcp.cover_type,
+                        SUM(
+                            ST_Area(
+                                ST_Transform(ST_Intersection(lcp.geometry, {geom}), 3857)
+                            )
+                        ) AS intersect_m2
+                    FROM land_cover_polygons lcp
+                    WHERE ST_Intersects(lcp.geometry, {geom})
+                    GROUP BY lcp.cover_type
+                """),
+                params,
             )
-            for r in lc_rows
-        ]
-        if total_m2 > 0
-        else []
-    )
+        ).mappings().all()
+
+        total_m2 = sum(float(r["intersect_m2"]) for r in lc_rows)
+        land_cover = (
+            [
+                LandCoverItem(
+                    type=r["cover_type"],
+                    percentage=round(float(r["intersect_m2"]) / total_m2 * 100, 2),
+                )
+                for r in lc_rows
+            ]
+            if total_m2 > 0
+            else []
+        )
 
     # 3. Deforestation alerts within polygon
     alerts_row = (
